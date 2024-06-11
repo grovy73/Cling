@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -43,11 +44,12 @@ func find_libs(content []byte, line_num int) ([]string, error) {
 	return nil, &NoLibs{}
 }
 
-func add_libs_to_cmd(cmd string, libs []string) string {
+func add_libs_to_cmd(libs []string) []string {
+	var args []string
 	for _, lib := range libs {
-		cmd = fmt.Sprintf("%s -l%s", cmd, lib)
+		args = append(args, fmt.Sprintf("-l%s", lib))
 	}
-	return cmd
+	return args
 }
 
 func main() {
@@ -59,7 +61,10 @@ func main() {
 		return
 	}
 
-	cmd := fmt.Sprintf("clang++ %s -o %s", flag.Arg(0), *output_name)
+	cmd := "clang++"
+	var args []string
+	args = append(args, flag.Arg(0))
+	args = append(args, fmt.Sprintf("-o%s", *output_name))
 
 	data, err := os.ReadFile(flag.Arg(0))
 	check_err(err)
@@ -67,10 +72,15 @@ func main() {
 	if line_num, err := contains_cling(data); err == nil {
 		libs, err := find_libs(data, line_num)
 		check_err(err)
-		cmd = add_libs_to_cmd(cmd, libs)
+		args = append(args, add_libs_to_cmd(libs)...)
 	} else {
 		panic(err)
 	}
+	out := exec.Command(cmd, args...)
 
-	fmt.Println(cmd)
+	if output, err := out.CombinedOutput(); err != nil {
+		fmt.Println(string(output))
+		fmt.Println(err.Error())
+		return
+	}
 }
